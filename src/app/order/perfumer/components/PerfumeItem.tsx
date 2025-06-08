@@ -22,7 +22,12 @@ const PerfumeItem: React.FC<PerfumeItemProps> = ({ perfume, index, type, onUpdat
           {type} 향수 #{index + 1}
         </h5>
         <span className="text-sm text-gray-500">
-          {type === '10ml' ? '24,000원' : '58,000원'}
+          {type === '10ml' ? '24,000원' : (
+            <div className="flex flex-col items-end">
+              <span className="line-through text-xs text-gray-400">58,000원</span>
+              <span className="text-red-600 font-bold">48,000원</span>
+            </div>
+          )}
         </span>
       </div>
       

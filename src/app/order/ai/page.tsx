@@ -25,7 +25,7 @@ export default function AIOrderPage() {
   const [copySuccess, setCopySuccess] = useState(false)
 
   const calculateSubtotal = () => {
-    return (formData.quantity10ml * 24000) + (formData.quantity50ml * 58000)
+    return (formData.quantity10ml * 24000) + (formData.quantity50ml * 48000)
   }
 
   const calculateShipping = () => {
@@ -352,6 +352,7 @@ export default function AIOrderPage() {
                   <p>• 입금자명은 주문자명과 동일하게 해주세요</p>
                   <p>• 제작 기간은 약 7일 소요됩니다</p>
                   <p>• 5만원 이상 주문시 배송비 무료!</p>
+                  <p className="text-red-600 font-semibold">🎉 50ml 런칭 특가: 58,000원 → 48,000원 (7월 14일까지)</p>
                 </div>
               </div>
             </div>
