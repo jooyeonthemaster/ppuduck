@@ -391,7 +391,7 @@ export default function PerfumerOrderPage() {
                 </div>                
                 <div className="text-xs text-gray-600 space-y-1">
                   <p>• 입금자명은 주문자명과 동일하게 해주세요</p>
-                  <p>• 제작 기간은 약 7-14일 소요됩니다</p>
+                  <p>• 제작 기간은 약 2주 소요됩니다</p>
                   <p>• 5만원 이상 주문시 배송비 무료!</p>
                   <p>• 조향사가 최애 정보를 바탕으로 특별한 향수를 만들어드립니다</p>
                 </div>

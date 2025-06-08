@@ -350,35 +350,14 @@ export default function AIOrderPage() {
                 
                 <div className="text-xs text-gray-600 space-y-1">
                   <p>• 입금자명은 주문자명과 동일하게 해주세요</p>
-                  <p>• 제작 기간은 약 7-14일 소요됩니다</p>
+                  <p>• 제작 기간은 약 7일 소요됩니다</p>
                   <p>• 5만원 이상 주문시 배송비 무료!</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* 연결 테스트 버튼 */}
-          <div className="text-center mb-4">
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  const { testConnection } = await import('../../../utils/orderSubmission')
-                  const result = await testConnection()
-                  alert(result.message)
-                } catch (error) {
-                  console.error('테스트 실패:', error)
-                  alert('테스트 중 오류가 발생했습니다.')
-                }
-              }}
-              className="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              🔧 연결 테스트
-            </button>
-            <p className="text-gray-500 text-xs mt-1">
-              문제가 있으면 이 버튼으로 연결을 테스트해보세요
-            </p>
-          </div>
+
 
           {/* 제출 버튼 */}
           <div className="text-center">
