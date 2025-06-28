@@ -1,9 +1,8 @@
 'use client'
 
 import React from 'react'
-import { PerfumeItem as PerfumeItemType, Scent } from '../types'
+import { PerfumeItem as PerfumeItemType } from '../types'
 import { PERFUME_COLORS } from '../constants'
-import ScentSelector from './ScentSelector'
 
 interface PerfumeItemProps {
   perfume: PerfumeItemType
@@ -13,7 +12,7 @@ interface PerfumeItemProps {
 }
 
 const PerfumeItem: React.FC<PerfumeItemProps> = ({ perfume, index, type, onUpdate }) => {
-  const isComplete = perfume.selectedScent && (type === '50ml' || perfume.perfumeColor)
+  const isComplete = type === '50ml' || perfume.perfumeColor
 
   return (
     <div className={`p-4 border rounded-lg transition-all ${isComplete ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-white'}`}>
@@ -32,15 +31,16 @@ const PerfumeItem: React.FC<PerfumeItemProps> = ({ perfume, index, type, onUpdat
       </div>
       
       <div className="space-y-3">
-        {/* 향료 선택 */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">향료 선택 *</label>
-          <ScentSelector
-            selectedScent={perfume.selectedScent}
-            onScentSelect={(scent) => onUpdate('selectedScent', scent)}
-            placeholder="향료를 선택하세요"
-          />
+        {/* 조향사가 최애 정보를 바탕으로 향료를 선택해드립니다 */}
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-700 flex items-center">
+            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            조향사가 최애 정보를 바탕으로 향료를 선택해드립니다
+          </p>
         </div>
+
         {/* 10ml 전용 옵션들 */}
         {type === '10ml' && (
           <>
@@ -61,7 +61,7 @@ const PerfumeItem: React.FC<PerfumeItemProps> = ({ perfume, index, type, onUpdat
 
             {/* 강도 선택 */}
             <div>
-                              <label className="block text-xs font-medium text-gray-600 mb-1">색의 농도</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">색의 농도</label>
               <div className="grid grid-cols-2 gap-2">
                 {['연하게', '진하게'].map(intensity => (
                   <button
@@ -91,6 +91,7 @@ const PerfumeItem: React.FC<PerfumeItemProps> = ({ perfume, index, type, onUpdat
             </div>
           </>
         )}
+
         {/* 라벨링 닉네임 */}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">라벨링 닉네임</label>

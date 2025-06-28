@@ -21,7 +21,7 @@ export default function Home() {
         <div className="p-6 pb-3">
           <div className="bg-gradient-to-r from-red-500 to-pink-500 rounded-xl p-4 text-center shadow-lg">
             <div className="text-white">
-              <div className="text-lg font-bold mb-1">🎉 6월 런칭 특가 🎉</div>
+              <div className="text-lg font-bold mb-1">🎉 뿌덕 런칭 특가! 🎉</div>
               <div className="text-sm">50ml 향수 <span className="line-through opacity-75">58,000원</span> → <span className="text-yellow-200 font-bold text-lg">48,000원</span></div>
               <div className="text-xs mt-1 opacity-90">⏰ 7월 14일까지 한정!</div>
             </div>

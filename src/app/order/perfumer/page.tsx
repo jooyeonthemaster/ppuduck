@@ -1,12 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { FormData, PerfumeItem, FavoriteInfo } from './types'
 import ProductSection from './components/ProductSection'
 import OrderSummary from './components/OrderSummary'
 import FavoriteInfoSection from './components/FavoriteInfoSection'
+
+// localStorage 키
+const FORM_DATA_KEY = 'perfumer-form-data'
 
 export default function PerfumerOrderPage() {
   const [formData, setFormData] = useState<FormData>({
@@ -32,11 +35,32 @@ export default function PerfumerOrderPage() {
       favoriteReason: '',
       keywords: [],
       colors: [],
-      images: []
+      images: [],
+      imageUrls: []
     }
   })
 
   const [copySuccess, setCopySuccess] = useState(false)
+
+  // 컴포넌트 마운트 시 localStorage에서 데이터 복원
+  useEffect(() => {
+    const savedData = localStorage.getItem(FORM_DATA_KEY)
+    if (savedData) {
+      try {
+        const parsedData = JSON.parse(savedData)
+        setFormData(parsedData)
+        console.log('폼 데이터 복원됨:', parsedData)
+      } catch (error) {
+        console.error('저장된 폼 데이터 파싱 실패:', error)
+      }
+    }
+  }, [])
+
+  // 폼 데이터가 변경될 때마다 localStorage에 저장
+  useEffect(() => {
+    localStorage.setItem(FORM_DATA_KEY, JSON.stringify(formData))
+  }, [formData])
+
   const calculateSubtotal = () => {
     return (formData.quantity10ml * 24000) + (formData.quantity50ml * 48000)
   }
@@ -66,7 +90,6 @@ export default function PerfumerOrderPage() {
       const newPerfumes = Array.from({ length: newQty }, (_, index) => 
         formData.perfumes10ml[index] || {
           id: `10ml-${index}`,
-          selectedScent: null,
           perfumeColor: '',
           perfumeIntensity: '연하게' as const,
           labelingNickname: ''
@@ -77,10 +100,10 @@ export default function PerfumerOrderPage() {
         quantity10ml: newQty,
         perfumes10ml: newPerfumes
       }))
-    } else {      const newPerfumes = Array.from({ length: newQty }, (_, index) => 
+    } else {
+      const newPerfumes = Array.from({ length: newQty }, (_, index) => 
         formData.perfumes50ml[index] || {
           id: `50ml-${index}`,
-          selectedScent: null,
           perfumeColor: '',
           perfumeIntensity: '연하게' as const,
           labelingNickname: ''
@@ -112,10 +135,10 @@ export default function PerfumerOrderPage() {
     }
   }
 
-  const updateFavoriteInfo = (info: FavoriteInfo) => {
+  const updateFavoriteInfo = (info: FavoriteInfo | ((prev: FavoriteInfo) => FavoriteInfo)) => {
     setFormData(prev => ({
       ...prev,
-      favoriteInfo: info
+      favoriteInfo: typeof info === 'function' ? info(prev.favoriteInfo) : info
     }))
   }
   const copyToClipboard = async () => {
@@ -144,20 +167,10 @@ export default function PerfumerOrderPage() {
       return
     }
     
-    // 각 향수의 향료 선택 확인
+    // 10ml 향수의 색상 선택 확인
     for (let i = 0; i < formData.quantity10ml; i++) {
-      if (!formData.perfumes10ml[i]?.selectedScent) {
-        alert(`10ml 향수 #${i + 1}의 향료를 선택해주세요!`)
-        return
-      }
       if (!formData.perfumes10ml[i]?.perfumeColor) {
         alert(`10ml 향수 #${i + 1}의 색상을 선택해주세요!`)
-        return
-      }
-    }    
-    for (let i = 0; i < formData.quantity50ml; i++) {
-      if (!formData.perfumes50ml[i]?.selectedScent) {
-        alert(`50ml 향수 #${i + 1}의 향료를 선택해주세요!`)
         return
       }
     }
@@ -169,6 +182,8 @@ export default function PerfumerOrderPage() {
       
       if (result.success) {
         alert(`주문이 성공적으로 접수되었습니다!\n주문번호: ${result.orderNumber}`)
+        // localStorage 정리
+        localStorage.removeItem(FORM_DATA_KEY)
         // 폼 초기화
         setFormData({
           name: '',
@@ -193,7 +208,8 @@ export default function PerfumerOrderPage() {
             favoriteReason: '',
             keywords: [],
             colors: [],
-            images: []
+            images: [],
+            imageUrls: []
           }
         })
       } else {

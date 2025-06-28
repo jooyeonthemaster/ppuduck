@@ -8,7 +8,7 @@ export interface Scent {
 // 개별 향수 아이템 인터페이스
 export interface PerfumeItem {
   id: string
-  selectedScent: Scent | null  // 단일 향료 선택
+  selectedScent?: Scent | null  // 단일 향료 선택 (조향사가 선택하므로 optional)
   perfumeColor: string
   perfumeIntensity: '연하게' | '진하게'
   labelingNickname: string
@@ -27,6 +27,7 @@ export interface FavoriteInfo {
   keywords: string[] // 최애 관련 키워드들 (최대 10개)
   colors: string[] // 최애와 연관된 색상들 (최대 5개)
   images: File[] // 이미지 파일들
+  imageUrls: string[] // Cloudinary 업로드된 이미지 URL들
 }
 
 // 폼 데이터 인터페이스

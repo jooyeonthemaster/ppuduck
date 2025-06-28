@@ -1,5 +1,91 @@
 // 구글 Apps Script 웹앱 URL (배포 후 받게 될 URL)
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzi3WDfXg7yBxtjRYuLtlhA5kpHX-MgBmBguYFPgiW6KtBnRHT8wxwW-byQvt8Rsh-S4w/exec'
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxWgmTVXGD5bPDBVuoDH0bGHqDYx6za55LMDbp3cLkTDctFUnpU6FIy58nTbIVRf0IETg/exec'
+
+/*
+=== Apps Script 수정이 필요한 부분 ===
+
+1. handleAIOrder와 handlePerfumerOrder 함수 끝부분에 추가:
+   // 배송 양식 데이터 저장
+   if (data.shippingFormat && data.shippingFormat.length > 0) {
+     saveShippingData(data.shippingFormat);
+   }
+
+2. 새로운 함수 추가:
+   function saveShippingData(shippingRows) {
+     const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+     let sheet = spreadsheet.getSheetByName('배송양식');
+     
+     if (!sheet) {
+       sheet = spreadsheet.insertSheet('배송양식');
+       const headers = [
+         '받는분주소(전체)', '받는분주소(분할)', '받는분성명', 
+         '받는분전화번호', '받는분기타연락처', '배송메세지1', 
+         '내용명', '내용수량', '등록일시'
+       ];
+       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+     }
+     
+     shippingRows.forEach(row => {
+       sheet.appendRow([
+         row.받는분주소전체,
+         row.받는분주소분할,
+         row.받는분성명,
+         row.받는분전화번호,
+         row.받는분기타연락처,
+         row.배송메세지1,
+         row.내용명,
+         row.내용수량,
+         new Date()
+       ]);
+     });
+   }
+*/
+
+/**
+ * 주문 데이터를 배송 양식에 맞게 변환
+ */
+function formatForShipping(orderData: any, orderType: 'ai' | 'perfumer'): any[] {
+  const shippingRows = []
+  
+  // 전체 주소 조합
+  const fullAddress = `${orderData.address}${orderData.detailAddress ? ' ' + orderData.detailAddress : ''}`
+  
+  // 10ml 향수들 처리
+  for (let i = 0; i < orderData.quantity10ml; i++) {
+    const perfume = orderData.perfumes10ml[i]
+    const contentName = perfume?.labelingNickname || `${perfume?.selectedScent?.name || '향수'} 10ml`
+    
+    shippingRows.push({
+      받는분주소전체: fullAddress,
+      받는분주소분할: orderData.address,
+      받는분성명: orderData.name,
+      받는분전화번호: orderData.phone,
+      받는분기타연락처: orderData.xId || '',
+      배송메세지1: orderData.additionalRequests || '',
+      내용명: contentName,
+      내용수량: 1
+    })
+  }
+  
+  // 50ml 향수들 처리
+  for (let i = 0; i < orderData.quantity50ml; i++) {
+    const perfume = orderData.perfumes50ml[i]
+    const contentName = perfume?.labelingNickname || `${perfume?.selectedScent?.name || '향수'} 50ml`
+    
+    shippingRows.push({
+      받는분주소전체: fullAddress,
+      받는분주소분할: orderData.address,
+      받는분성명: orderData.name,
+      받는분전화번호: orderData.phone,
+      받는분기타연락처: orderData.xId || '',
+      배송메세지1: orderData.additionalRequests || '',
+      내용명: contentName,
+      내용수량: 1
+    })
+  }
+  
+  return shippingRows
+}
 
 /**
  * Apps Script 연결 테스트
@@ -74,19 +160,48 @@ export async function submitOrder(orderData: any, orderType: 'ai' | 'perfumer'):
     // 이미지 파일 처리 (조향사 베이스의 경우)
     let processedData = { ...orderData, orderType }
     
-    if (orderType === 'perfumer' && orderData.favoriteInfo?.images?.length > 0) {
-      // 이미지는 일단 제외하고 전송 (나중에 별도 처리 가능)
+    if (orderType === 'perfumer' && orderData.favoriteInfo) {
+      console.log('=== 이미지 URL 디버깅 ===')
+      console.log('원본 favoriteInfo.imageUrls:', orderData.favoriteInfo.imageUrls)
+      console.log('imageUrls 타입:', typeof orderData.favoriteInfo.imageUrls)
+      console.log('imageUrls 길이:', orderData.favoriteInfo.imageUrls?.length)
+      console.log('imageUrls 내용:', JSON.stringify(orderData.favoriteInfo.imageUrls, null, 2))
+      
+      // 이미지 파일은 제외하고, 이미지 URL은 포함
       processedData.favoriteInfo = {
         ...orderData.favoriteInfo,
-        images: [] // 이미지는 현재 버전에서는 제외
+        images: [], // 파일 객체는 제외
+        imageUrls: orderData.favoriteInfo.imageUrls || [] // Cloudinary URL은 포함
       }
+      
+      console.log('처리된 favoriteInfo.imageUrls:', processedData.favoriteInfo.imageUrls)
+      console.log('=== 이미지 URL 디버깅 끝 ===')
     }
     
-    console.log('전송할 데이터 크기:', JSON.stringify(processedData).length, '바이트')
+    // 배송 양식 데이터 생성
+    const shippingData = formatForShipping(orderData, orderType)
+    
+    // 디버깅용 상세 로그 추가
+    console.log('=== 배송 양식 디버깅 ===')
+    console.log('생성된 배송 데이터 개수:', shippingData.length)
+    console.log('배송 데이터 상세:', JSON.stringify(shippingData, null, 2))
+    console.log('orderData.quantity10ml:', orderData.quantity10ml)
+    console.log('orderData.quantity50ml:', orderData.quantity50ml)
+    console.log('orderData.perfumes10ml:', orderData.perfumes10ml)
+    console.log('orderData.perfumes50ml:', orderData.perfumes50ml)
+    
+    // 전송할 최종 데이터 (기존 데이터 + 배송 양식 데이터)
+    const finalData = {
+      ...processedData,
+      shippingFormat: shippingData // 세번째 시트용 배송 양식 데이터
+    }
+    
+    console.log('전송할 데이터 크기:', JSON.stringify(finalData).length, '바이트')
     console.log('전송할 데이터 샘플:', {
-      orderType: processedData.orderType,
-      name: processedData.name,
-      dataKeys: Object.keys(processedData)
+      orderType: finalData.orderType,
+      name: finalData.name,
+      dataKeys: Object.keys(finalData),
+      shippingRowsCount: finalData.shippingFormat.length
     })
     
     console.log('fetch 요청 시작...')
@@ -94,7 +209,7 @@ export async function submitOrder(orderData: any, orderType: 'ai' | 'perfumer'):
     
     const response = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
-      body: JSON.stringify(processedData),
+      body: JSON.stringify(finalData),
     })
     
     const endTime = Date.now()

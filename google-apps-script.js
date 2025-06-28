@@ -1,6 +1,7 @@
 /**
  * 향수 주문 관리 Apps Script
  * AI 베이스와 조향사 베이스 주문을 각각의 시트에 저장하고 이메일 알림을 전송
+ * + 배송 양식 데이터를 세번째 시트에 저장 (디버깅 강화)
  */
 
 // 알림 받을 이메일 주소들
@@ -50,8 +51,23 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const orderType = data.orderType; // 'ai' 또는 'perfumer'
     
-    console.log('파싱된 데이터:', data);
+    console.log('=== 전체 받은 데이터 디버깅 ===');
+    console.log('전체 데이터:', JSON.stringify(data, null, 2));
+    console.log('데이터 키들:', Object.keys(data));
+    console.log('shippingFormat 직접 확인:', data.shippingFormat);
+    console.log('shippingFormat 타입:', typeof data.shippingFormat);
+    console.log('=== APPS SCRIPT 디버깅 ===');
+    console.log('파싱된 데이터 키들:', Object.keys(data));
     console.log('주문 타입:', orderType);
+    console.log('shippingFormat 존재 여부:', !!data.shippingFormat);
+    console.log('shippingFormat 타입:', typeof data.shippingFormat);
+    console.log('shippingFormat 길이:', data.shippingFormat ? data.shippingFormat.length : 'undefined');
+    
+    if (data.shippingFormat && data.shippingFormat.length > 0) {
+      console.log('shippingFormat 첫번째 데이터:', JSON.stringify(data.shippingFormat[0]));
+    } else {
+      console.log('shippingFormat 데이터가 없거나 비어있음!');
+    }
     
     if (!orderType) {
       throw new Error('주문 타입이 지정되지 않았습니다.');
@@ -113,11 +129,9 @@ function handleAIOrder(data) {
       sheet = spreadsheet.insertSheet('ai base');
       // 헤더 설정
       const headers = [
-        '주문번호', '주문일시', '이름', '연락처', '우편번호', '주소', '상세주소',
-        '향수1_이름', '향수1_크기', '향수1_수량', '향수1_가격',
-        '향수2_이름', '향수2_크기', '향수2_수량', '향수2_가격',
-        '향수3_이름', '향수3_크기', '향수3_수량', '향수3_가격',
-        '총금액', '결제방법', '배송메모'
+        '주문번호', '주문일시', '이름', '연락처', 'X아이디', '주소', '상세주소',
+        '10ml수량', '10ml향수정보', '50ml수량', '50ml향수정보',
+        '총금액', '배송비', '최종금액', '추가요청사항'
       ];
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     }
@@ -127,12 +141,22 @@ function handleAIOrder(data) {
     console.log('생성된 주문번호:', orderNumber);
     
     // 향수 정보 처리
-    const perfumes = data.perfumes || [];
-    console.log('향수 정보:', perfumes);
+    const perfumes10ml = data.perfumes10ml || [];
+    const perfumes50ml = data.perfumes50ml || [];
     
-    const perfume1 = perfumes[0] || {};
-    const perfume2 = perfumes[1] || {};
-    const perfume3 = perfumes[2] || {};
+    // 향수 정보를 문자열로 변환
+    const perfume10mlInfo = perfumes10ml.map(p => 
+      `${p.selectedScent?.name || '미선택'} (${p.perfumeColor || '색상미선택'}, ${p.perfumeIntensity || '연하게'}) - ${p.labelingNickname || '닉네임없음'}`
+    ).join('; ');
+    
+    const perfume50mlInfo = perfumes50ml.map(p => 
+      `${p.selectedScent?.name || '미선택'} (${p.perfumeColor || '색상미선택'}, ${p.perfumeIntensity || '연하게'}) - ${p.labelingNickname || '닉네임없음'}`
+    ).join('; ');
+    
+    // 금액 계산
+    const subtotal = (data.quantity10ml * 24000) + (data.quantity50ml * 48000);
+    const shipping = subtotal >= 50000 ? 0 : 3500;
+    const total = subtotal + shipping;
     
     // 행 데이터 준비
     const rowData = [
@@ -140,24 +164,17 @@ function handleAIOrder(data) {
       new Date(),
       data.name || '',
       data.phone || '',
-      data.zipCode || '',
+      data.xId || '',
       data.address || '',
       data.detailAddress || '',
-      perfume1.name || '',
-      perfume1.size || '',
-      parseInt(perfume1.quantity) || 0,
-      parseInt(perfume1.price) || 0,
-      perfume2.name || '',
-      perfume2.size || '',
-      parseInt(perfume2.quantity) || 0,
-      parseInt(perfume2.price) || 0,
-      perfume3.name || '',
-      perfume3.size || '',
-      parseInt(perfume3.quantity) || 0,
-      parseInt(perfume3.price) || 0,
-      parseInt(data.totalAmount) || 0,
-      data.paymentMethod || '',
-      data.memo || ''
+      data.quantity10ml || 0,
+      perfume10mlInfo,
+      data.quantity50ml || 0,
+      perfume50mlInfo,
+      subtotal,
+      shipping,
+      total,
+      data.additionalRequests || ''
     ];
     
     console.log('추가할 행 데이터:', rowData);
@@ -165,6 +182,20 @@ function handleAIOrder(data) {
     // 데이터 추가
     sheet.appendRow(rowData);
     console.log('시트에 데이터 추가 완료');
+    
+    // 💡 배송 양식 처리 전에 로그 추가
+    console.log('=== 배송 양식 처리 시작 ===');
+    console.log('data.shippingFormat 체크:', !!data.shippingFormat);
+    console.log('data.shippingFormat 길이:', data.shippingFormat ? data.shippingFormat.length : 0);
+    
+    // 배송 양식 데이터 저장
+    if (data.shippingFormat && data.shippingFormat.length > 0) {
+      console.log('배송 양식 데이터 저장 시작:', data.shippingFormat.length, '건');
+      saveShippingData(data.shippingFormat);
+      console.log('배송 양식 데이터 저장 완료');
+    } else {
+      console.log('⚠️ 배송 양식 데이터가 없어서 저장하지 않음');
+    }
     
     // 이메일 알림 발송
     try {
@@ -203,14 +234,13 @@ function handlePerfumerOrder(data) {
     if (!sheet) {
       console.log('perfumer base 시트 생성 중...');
       sheet = spreadsheet.insertSheet('perfumer base');
-      // 헤더 설정
+      // 헤더 설정 (이미지URLs 필드 추가)
       const headers = [
-        '주문번호', '주문일시', '이름', '연락처', '우편번호', '주소', '상세주소',
-        '향수1_이름', '향수1_크기', '향수1_수량', '향수1_가격',
-        '향수2_이름', '향수2_크기', '향수2_수량', '향수2_가격',
-        '향수3_이름', '향수3_크기', '향수3_수량', '향수3_가격',
-        '총금액', '결제방법', '배송메모',
-        '최애_이름', '최애_타입', '최애_성격', '최애_특징', '최애_키워드', '최애_색상', '최애_이미지URL'
+        '주문번호', '주문일시', '이름', '연락처', 'X아이디', '주소', '상세주소',
+        '10ml수량', '10ml향수정보', '50ml수량', '50ml향수정보',
+        '총금액', '배송비', '최종금액', '추가요청사항',
+        '최애이름', '최애타입', '최애성격', '최애특징', '최애분위기', 
+        '특별한기억', '원하는분위기', '좋아하게된계기', '키워드', '색상', '이미지URLs'
       ];
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     }
@@ -220,48 +250,73 @@ function handlePerfumerOrder(data) {
     console.log('생성된 주문번호:', orderNumber);
     
     // 향수 정보 처리
-    const perfumes = data.perfumes || [];
-    console.log('향수 정보:', perfumes);
+    const perfumes10ml = data.perfumes10ml || [];
+    const perfumes50ml = data.perfumes50ml || [];
     
-    const perfume1 = perfumes[0] || {};
-    const perfume2 = perfumes[1] || {};
-    const perfume3 = perfumes[2] || {};
+    // 향수 정보를 문자열로 변환
+    const perfume10mlInfo = perfumes10ml.map(p => 
+      `${p.selectedScent?.name || '미선택'} (${p.perfumeColor || '색상미선택'}, ${p.perfumeIntensity || '연하게'}) - ${p.labelingNickname || '닉네임없음'}`
+    ).join('; ');
+    
+    const perfume50mlInfo = perfumes50ml.map(p => 
+      `${p.selectedScent?.name || '미선택'} (${p.perfumeColor || '색상미선택'}, ${p.perfumeIntensity || '연하게'}) - ${p.labelingNickname || '닉네임없음'}`
+    ).join('; ');
+    
+    // 금액 계산
+    const subtotal = (data.quantity10ml * 24000) + (data.quantity50ml * 48000);
+    const shipping = subtotal >= 50000 ? 0 : 3500;
+    const total = subtotal + shipping;
     
     // 최애 정보 처리
     const favoriteInfo = data.favoriteInfo || {};
     console.log('최애 정보:', favoriteInfo);
     
-    // 행 데이터 준비
+    // 이미지 URL 디버깅
+    console.log('=== Apps Script 이미지 URL 디버깅 ===');
+    console.log('favoriteInfo 전체:', JSON.stringify(favoriteInfo, null, 2));
+    console.log('favoriteInfo.imageUrls 직접 확인:', favoriteInfo.imageUrls);
+    console.log('favoriteInfo.imageUrls 타입:', typeof favoriteInfo.imageUrls);
+    console.log('favoriteInfo.imageUrls 길이:', favoriteInfo.imageUrls ? favoriteInfo.imageUrls.length : 'undefined');
+    
+    if (favoriteInfo.imageUrls && Array.isArray(favoriteInfo.imageUrls)) {
+      console.log('이미지 URLs 배열 내용:');
+      favoriteInfo.imageUrls.forEach((url, index) => {
+        console.log(`  ${index}: ${url}`);
+      });
+    }
+    
+    const imageUrlsString = (favoriteInfo.imageUrls || []).join(', ');
+    console.log('최종 이미지 URLs 문자열:', imageUrlsString);
+    console.log('=== Apps Script 이미지 URL 디버깅 끝 ===');
+
+    // 행 데이터 준비 (이미지URLs 필드 추가)
     const rowData = [
       orderNumber,
       new Date(),
       data.name || '',
       data.phone || '',
-      data.zipCode || '',
+      data.xId || '',
       data.address || '',
       data.detailAddress || '',
-      perfume1.name || '',
-      perfume1.size || '',
-      parseInt(perfume1.quantity) || 0,
-      parseInt(perfume1.price) || 0,
-      perfume2.name || '',
-      perfume2.size || '',
-      parseInt(perfume2.quantity) || 0,
-      parseInt(perfume2.price) || 0,
-      perfume3.name || '',
-      perfume3.size || '',
-      parseInt(perfume3.quantity) || 0,
-      parseInt(perfume3.price) || 0,
-      parseInt(data.totalAmount) || 0,
-      data.paymentMethod || '',
-      data.memo || '',
+      data.quantity10ml || 0,
+      perfume10mlInfo,
+      data.quantity50ml || 0,
+      perfume50mlInfo,
+      subtotal,
+      shipping,
+      total,
+      data.additionalRequests || '',
       favoriteInfo.name || '',
       favoriteInfo.type || '',
       favoriteInfo.personality || '',
       favoriteInfo.characteristics || '',
+      favoriteInfo.mood || '',
+      favoriteInfo.specialMemory || '',
+      favoriteInfo.desiredVibe || '',
+      favoriteInfo.favoriteReason || '',
       (favoriteInfo.keywords || []).join(', '),
       (favoriteInfo.colors || []).join(', '),
-      favoriteInfo.imageUrl || ''
+      imageUrlsString // 이미지URLs 추가
     ];
     
     console.log('추가할 행 데이터:', rowData);
@@ -269,6 +324,20 @@ function handlePerfumerOrder(data) {
     // 데이터 추가
     sheet.appendRow(rowData);
     console.log('시트에 데이터 추가 완료');
+    
+    // 💡 배송 양식 처리 전에 로그 추가
+    console.log('=== 배송 양식 처리 시작 ===');
+    console.log('data.shippingFormat 체크:', !!data.shippingFormat);
+    console.log('data.shippingFormat 길이:', data.shippingFormat ? data.shippingFormat.length : 0);
+    
+    // 배송 양식 데이터 저장
+    if (data.shippingFormat && data.shippingFormat.length > 0) {
+      console.log('배송 양식 데이터 저장 시작:', data.shippingFormat.length, '건');
+      saveShippingData(data.shippingFormat);
+      console.log('배송 양식 데이터 저장 완료');
+    } else {
+      console.log('⚠️ 배송 양식 데이터가 없어서 저장하지 않음');
+    }
     
     // 이메일 알림 발송
     try {
@@ -290,6 +359,94 @@ function handlePerfumerOrder(data) {
   } catch (error) {
     console.error('조향사 주문 처리 오류:', error);
     throw new Error('조향사 주문 처리 중 오류: ' + error.message);
+  }
+}
+
+/**
+ * 배송 양식 데이터를 세번째 시트에 저장
+ */
+function saveShippingData(shippingRows) {
+  try {
+    console.log('💡 saveShippingData 함수 시작');
+    console.log('배송 양식 저장 시작:', shippingRows.length, '건');
+    console.log('배송 양식 데이터 샘플:', JSON.stringify(shippingRows[0]));
+    
+    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+    
+    console.log('스프레드시트 열기 성공');
+    
+    // 여러 시트명 지원
+    let sheet = spreadsheet.getSheetByName('배송양식') || 
+                spreadsheet.getSheetByName('Shipping Information') ||
+                spreadsheet.getSheetByName('shipping');
+    
+    console.log('기존 시트 검색 결과:', sheet ? sheet.getName() : '없음');
+    
+    // 시트가 없으면 '배송양식' 이름으로 생성
+    if (!sheet) {
+      console.log('배송양식 시트 생성 중... (이름: 배송양식)');
+      sheet = spreadsheet.insertSheet('배송양식');
+      console.log('시트 생성 완료');
+      
+      // 헤더 설정
+      const headers = [
+        '받는분주소(전체)', 
+        '받는분주소(분할)', 
+        '받는분성명', 
+        '받는분전화번호', 
+        '받는분기타연락처', 
+        '배송메세지1', 
+        '내용명', 
+        '내용수량',
+        '등록일시'
+      ];
+      
+      console.log('헤더 설정 중...', headers);
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      console.log('헤더 설정 완료');
+      
+      // 헤더 스타일링
+      const headerRange = sheet.getRange(1, 1, 1, headers.length);
+      headerRange.setBackground('#4285f4');
+      headerRange.setFontColor('#ffffff');
+      headerRange.setFontWeight('bold');
+      headerRange.setHorizontalAlignment('center');
+      console.log('헤더 스타일링 완료');
+    } else {
+      console.log('기존 시트 사용:', sheet.getName());
+    }
+    
+    // 각 배송 행을 시트에 추가
+    shippingRows.forEach((row, index) => {
+      console.log(`배송 데이터 ${index + 1} 저장 중:`, {
+        이름: row.받는분성명,
+        주소: row.받는분주소전체,
+        내용명: row.내용명
+      });
+      
+      const rowToAdd = [
+        row.받는분주소전체 || '',
+        row.받는분주소분할 || '',
+        row.받는분성명 || '',
+        row.받는분전화번호 || '',
+        row.받는분기타연락처 || '',
+        row.배송메세지1 || '',
+        row.내용명 || '',
+        row.내용수량 || 1,
+        new Date() // 등록일시
+      ];
+      
+      console.log(`실제 추가할 행 ${index + 1}:`, rowToAdd);
+      sheet.appendRow(rowToAdd);
+      console.log(`행 ${index + 1} 추가 완료`);
+    });
+    
+    console.log('💡 배송 양식 저장 완료:', shippingRows.length, '건');
+    
+  } catch (error) {
+    console.error('💥 배송 양식 저장 오류:', error);
+    console.error('💥 오류 상세:', error.stack);
+    throw new Error('배송 양식 저장 중 오류: ' + error.message);
   }
 }
 
@@ -319,10 +476,11 @@ function sendOrderNotification(data, orderType, orderNumber) {
     
     // 향수 정보 포맷팅
     let perfumeInfo = '';
-    if (data.perfumes && data.perfumes.length > 0) {
-      perfumeInfo = data.perfumes.map((perfume, index) => 
-        `${index + 1}. ${perfume.name} (${perfume.size}) - ${perfume.quantity}개 - ${perfume.price}원`
-      ).join('\n');
+    if (data.quantity10ml > 0) {
+      perfumeInfo += `10ml 향수: ${data.quantity10ml}개\n`;
+    }
+    if (data.quantity50ml > 0) {
+      perfumeInfo += `50ml 향수: ${data.quantity50ml}개\n`;
     }
     
     // 최애 정보 포맷팅 (조향사 주문인 경우)
@@ -350,7 +508,8 @@ function sendOrderNotification(data, orderType, orderNumber) {
 === 고객 정보 ===
 이름: ${data.name || ''}
 연락처: ${data.phone || ''}
-우편번호: ${data.zipCode || ''}
+X아이디: ${data.xId || ''}
+우편번호: ${data.postalCode || ''}
 주소: ${data.address || ''}
 상세주소: ${data.detailAddress || ''}
 
@@ -358,10 +517,10 @@ function sendOrderNotification(data, orderType, orderNumber) {
 ${perfumeInfo}
 
 총 금액: ${data.totalAmount || 0}원
-결제방법: ${data.paymentMethod || ''}
+결제방법: 무통장입금
 
 === 배송 메모 ===
-${data.memo || '없음'}
+${data.additionalRequests || '없음'}
 
 ${favoriteInfo}
 
